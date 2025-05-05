@@ -1,0 +1,27 @@
+# Web Framework
+fastapi
+uvicorn[standard] # ASGI (Asynchronous Server Gateway Interface)
+
+# Vector DB
+qdrant-client
+
+# PDF Parsing
+pymupdf
+
+# OpenAI Client (for Embeddings & LLM)
+openai
+
+# Document Processing (for Chunking)
+langchain
+tiktoken # For token counting
+
+# Configuration
+pydantic
+pydantic-settings
+
+# Testing
+pytest
+httpx # For testing FastAPI endpoints
+
+# Logging
+structlog
