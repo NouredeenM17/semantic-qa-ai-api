@@ -10,14 +10,16 @@ class Settings(BaseSettings):
     qdrant_host: str = Field("localhost", alias='QDRANT_HOST')
     qdrant_port: int = Field(6333, alias='QDRANT_PORT')
     qdrant_collection_name: str = Field("semantic_qa_collection", alias='QDRANT_COLLECTION_NAME')
+    qdrant_prefer_grpc: bool = Field(True, alias='QDRANT_PREFER_GRPC')
 
     # Embedding Model Configuration
     embedding_model_name: str = Field("text-embedding-3-small", alias='EMBEDDING_MODEL_NAME')
-    embedding_dimensions: int = Field(1536, alias='EMBEDDING_DIMENSIONS')
+    embedding_dim: int = Field(1536, alias='EMBEDDING_DIM')
     openai_api_key: str = Field(..., alias='OPENAI_API_KEY') # Make required
     # gemini_api_key: Optional[str] = Field(None, alias='GEMINI_API_KEY') # Add later if needed
 
     # LLM Configuration
+    llm_provider: str = Field("openai", alias='LLM_PROVIDER')
     llm_model_name: str = Field("gpt-4-turbo-preview", alias='LLM_MODEL_NAME')
     
     # Document Processing Configuration

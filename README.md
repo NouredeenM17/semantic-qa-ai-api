@@ -6,3 +6,6 @@ Tech stack used: FastAPI, Qdrant, OpenAI Embeddings & GPT-4 (initially), PyMuPDF
 Activate venv: (on windows CMD)
 .\qa-ai-venv\Scripts\activate.bat
 
+Use this to deactivate conda:
+conda deactivate
+

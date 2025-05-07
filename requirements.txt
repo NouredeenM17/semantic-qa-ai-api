@@ -21,6 +21,7 @@ pydantic-settings
 
 # Testing
 pytest
+pytest-asyncio # For testing Async functions
 httpx # For testing FastAPI endpoints
 
 # Logging
