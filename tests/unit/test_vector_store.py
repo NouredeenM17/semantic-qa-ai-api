@@ -2,6 +2,7 @@ import pytest
 from unittest.mock import patch, MagicMock, call
 from qdrant_client import QdrantClient, models
 from qdrant_client.http.exceptions import UnexpectedResponse # For simulating Qdrant errors
+from qdrant_client.http.models import ScoredPoint
 
 from app.services.vector_store import VectorStoreService
 from app.core.exceptions import VectorStoreError
@@ -147,3 +148,67 @@ def test_upsert_chunks_qdrant_error(vector_store_service_instance):
             embeddings=[[0.1]],
             document_metadata={"document_id": "d1", "title": "t1"}
         )
+
+def test_search_similar_chunks_success(vector_store_service_instance):
+    service, mock_client = vector_store_service_instance
+    
+    query_embedding = [0.1] * settings.embedding_dim # Dummy embedding
+    top_k = 3
+    collection_name = "test_search_collection"
+
+    # Mock Qdrant's search response
+    mock_search_results = [
+        ScoredPoint(id=str(uuid.uuid4()), version=1, score=0.9, payload={"text": "chunk1", "page_number": 1}, vector=None, shard_key=None),
+        ScoredPoint(id=str(uuid.uuid4()), version=1, score=0.8, payload={"text": "chunk2", "page_number": 2}, vector=None, shard_key=None),
+    ]
+    mock_client.search.return_value = mock_search_results
+
+    results = service.search_similar_chunks(
+        query_embedding=query_embedding,
+        top_k=top_k,
+        collection_name=collection_name,
+        score_threshold=0.7
+    )
+
+    assert len(results) == 2
+    assert results[0]["payload"]["text"] == "chunk1"
+    assert results[0]["score"] == 0.9
+    assert "id" in results[0] # Check that ID is included
+
+    mock_client.search.assert_called_once_with(
+        collection_name=collection_name,
+        query_vector=query_embedding,
+        limit=top_k,
+        with_payload=True,
+        with_vectors=False,
+        score_threshold=0.7
+    )
+
+def test_search_similar_chunks_no_results(vector_store_service_instance):
+    service, mock_client = vector_store_service_instance
+    query_embedding = [0.2] * settings.embedding_dim
+    top_k = 5
+    
+    mock_client.search.return_value = [] # Qdrant returns an empty list
+
+    results = service.search_similar_chunks(query_embedding, top_k)
+
+    assert len(results) == 0
+    mock_client.search.assert_called_once_with(
+        collection_name=settings.qdrant_collection_name, # Using default
+        query_vector=query_embedding,
+        limit=top_k,
+        with_payload=True,
+        with_vectors=False,
+        score_threshold=None # Default score_threshold
+    )
+
+def test_search_similar_chunks_qdrant_error(vector_store_service_instance):
+    service, mock_client = vector_store_service_instance
+    query_embedding = [0.3] * settings.embedding_dim
+    
+    # Simulate a Qdrant client error
+    mock_client.search.side_effect = UnexpectedResponse(status_code=500, headers="header", content="Server error", reason_phrase="Server Error")
+
+    with pytest.raises(VectorStoreError, match="Failed to search Qdrant:"):
+        service.search_similar_chunks(query_embedding, top_k=3)

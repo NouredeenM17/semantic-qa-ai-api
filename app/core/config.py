@@ -21,7 +21,9 @@ class Settings(BaseSettings):
     # LLM Configuration
     llm_provider: str = Field("openai", alias='LLM_PROVIDER')
     llm_model_name: str = Field("gpt-4-turbo-preview", alias='LLM_MODEL_NAME')
-    
+    llm_temperature: float = Field(0.1, alias='LLM_TEMPERATURE', ge=0.0, le=2.0)
+    llm_max_tokens: int = Field(500, alias='LLM_MAX_TOKENS', gt=0)
+
     # Document Processing Configuration
     chunk_size: int = Field(700, alias='CHUNK_SIZE')
     chunk_overlap: int = Field(100, alias='CHUNK_OVERLAP')

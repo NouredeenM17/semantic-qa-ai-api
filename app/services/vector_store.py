@@ -107,6 +107,7 @@ class VectorStoreService:
                 "document_id": document_metadata["document_id"],
                 "title": document_metadata.get("title", "N/A"), # PDF filename
                 "author": document_metadata.get("author"), # Optional
+                # "user_id": authenticated_user_id
             }
             # Filter out None values from payload as Qdrant might not like them for certain field types
             payload = {k: v for k, v in payload.items() if v is not None}
@@ -127,6 +128,71 @@ class VectorStoreService:
         except Exception as e:
             logger.error(f"Failed to upsert points to Qdrant collection '{col_name}': {e}")
             raise VectorStoreError(f"Failed to upsert points to Qdrant: {e}")
+
+
+    def search_similar_chunks(
+        self,
+        query_embedding: List[float],
+        top_k: int,
+        collection_name: Optional[str] = None,
+        score_threshold: Optional[float] = None # Optional similarity score threshold
+    ) -> List[Dict]:
+        """
+        Searches Qdrant for the top_k most similar chunks to the query_embedding.
+
+        Args:
+            collection_name: Name of the Qdrant collection.
+            query_embedding: The vector embedding of the query.
+            top_k: The maximum number of similar chunks to retrieve.
+            score_threshold: Optional. Minimum similarity score for a chunk to be included.
+                             (For Cosine similarity, higher is better, typically 0.7-1.0)
+
+        Returns:
+            A list of dictionaries, where each dictionary contains the payload
+            of a relevant chunk and its similarity score.
+            Example: [{'payload': {...}, 'score': 0.85}, ...]
+
+        Raises:
+            VectorStoreError: If the search operation fails.
+        """
+        col_name = collection_name or self.default_collection_name
+        try:
+            # query_filter = models.Filter(
+            #     must=[
+            #         models.FieldCondition(
+            #             key="user_id", # The key in your payload
+            #             match=models.MatchValue(value=authenticated_user_id)
+            #         )
+            #     ]
+            # )
+
+            search_results = self.client.search(
+                collection_name=col_name,
+                query_vector=query_embedding,
+                # query_filter=query_filter,
+                limit=top_k,
+                with_payload=True,  # We need the payload (text, metadata)
+                with_vectors=False, # We don't usually need the vector itself in the result
+                score_threshold=score_threshold # Filter by similarity score if provided
+            )
+            
+            # search_results is a list of ScoredPoint objects
+            # ScoredPoint(id=..., version=..., score=..., payload=..., vector=..., shard_key=...)
+            
+            results = []
+            for hit in search_results:
+                results.append({
+                    "id": str(hit.id), # Good to have the point ID
+                    "payload": hit.payload,
+                    "score": hit.score
+                })
+            
+            logger.info(f"Found {len(results)} similar chunks in '{col_name}' for the query (top_k={top_k}, score_threshold={score_threshold}).")
+            return results
+
+        except Exception as e:
+            logger.error(f"Failed to search Qdrant collection '{col_name}': {e}")
+            raise VectorStoreError(f"Failed to search Qdrant: {e}")
 
 # Global instance or dependency injection:
 # For simplicity in early stages, a global instance can be okay,
