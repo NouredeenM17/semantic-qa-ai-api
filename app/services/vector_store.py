@@ -20,7 +20,6 @@ class VectorStoreService:
                 self.client = QdrantClient(
                     host=settings.qdrant_host,
                     port=settings.qdrant_port,
-                    api_key=settings.qdrant_api_key if settings.qdrant_api_key else None,
                     prefer_grpc=settings.qdrant_prefer_grpc,
                     # timeout=10 # Optional: set timeout for requests
                 )

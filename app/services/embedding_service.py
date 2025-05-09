@@ -48,7 +48,7 @@ class EmbeddingService:
             logger.info(f"Successfully generated {len(embeddings)} embeddings.")
             return embeddings
         except APIError as e: # More specific OpenAI error
-            logger.error(f"OpenAI API error during embedding: {e.status_code} - {e.message}")
+            logger.error(f"OpenAI API error during embedding: {e} - {e.message}")
             raise EmbeddingError(f"OpenAI API error: {e.message}")
         except Exception as e:
             logger.error(f"An unexpected error occurred during embedding: {e}")
