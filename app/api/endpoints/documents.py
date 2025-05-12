@@ -87,13 +87,7 @@ async def upload_documents(
                 embedding_s,
                 vector_s
             )
-            # For now, we don't have the doc_id immediately as it's backgrounded.
-            # We could return a task ID or a temporary reference if needed.
-            # For simplicity, let's just acknowledge the file was queued.
-            # If you need individual doc_ids back, you'd need a more complex system
-            # (e.g., background task writes ID to a DB, client polls an endpoint).
-            # Let's consider a conceptual "file_reference_id" or just the filename for now.
-            # processed_doc_ids.append(file.filename) # Using filename as a temporary reference
+            
             logger.info(f"File '{file.filename}' queued for background processing.")
 
         except Exception as e:

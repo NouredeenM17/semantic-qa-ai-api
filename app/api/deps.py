@@ -23,15 +23,3 @@ def get_vector_store_service() -> VectorStoreService:
 def get_qa_service() -> QAService:
     # QAService init might raise ValueError or NotImplementedError
     return QAService()
-
-# Example usage in an endpoint:
-# from fastapi import APIRouter, Depends
-# from app.api.deps import get_qa_service
-# from app.services.qa_service import QAService
-#
-# router = APIRouter()
-#
-# @router.post("/some_path")
-# async def some_endpoint(qa_s: QAService = Depends(get_qa_service)):
-#     # use qa_s here
-#     pass

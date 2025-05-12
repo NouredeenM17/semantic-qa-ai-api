@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     embedding_model_name: str = Field("sentence-transformers/all-MiniLM-L6-v2", alias='EMBEDDING_MODEL_NAME')
     embedding_dim: int = Field(384, alias='EMBEDDING_DIM')
     openai_api_key: str = Field(..., alias='OPENAI_API_KEY') # Make required
-    # gemini_api_key: Optional[str] = Field(None, alias='GEMINI_API_KEY') # Add later if needed
+    # gemini_api_key: Optional[str] = Field(None, alias='GEMINI_API_KEY') # Add later
 
     # LLM Configuration
     llm_provider: str = Field("openai", alias='LLM_PROVIDER')
@@ -31,8 +31,3 @@ class Settings(BaseSettings):
 
 # Create a single instance for the application to import
 settings = Settings()
-
-# Example usage:
-# from app.core.config import settings
-# print(settings.qdrant_host)
-# print(settings.openai_api_key)

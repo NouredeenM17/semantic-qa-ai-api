@@ -31,9 +31,3 @@ class SourceDocument(BaseModel):
 class QueryResponse(BaseModel):
     answer: str = Field(..., description="The LLM-generated answer to the query.")
     sources: List[SourceDocument] = Field([], description="List of source documents used to generate the answer.")
-
-# Example usage in endpoint (FastAPI will handle this automatically):
-# @router.post("/query", response_model=QueryResponse)
-# async def perform_query(request: QueryRequest):
-#     # ... logic ...
-#     return QueryResponse(answer="The answer is...", sources=[...])

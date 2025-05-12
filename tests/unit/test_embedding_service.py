@@ -1,84 +1,97 @@
 
 import pytest
 from unittest.mock import patch, MagicMock
-from openai import APIError
+import numpy as np
 
 from app.services.embedding_service import EmbeddingService
 from app.core.exceptions import EmbeddingError
-from app.core.config import settings # Import the settings instance
+from app.core.config import settings
+
+# --- Fixtures ---
 
 @pytest.fixture
-def mock_openai_client_constructor(): # Renamed to reflect it mocks the constructor
-    with patch('app.services.embedding_service.OpenAI') as mock_client_constructor:
-        mock_client_instance = MagicMock()
-        mock_client_constructor.return_value = mock_client_instance
-        yield mock_client_constructor, mock_client_instance
+def mock_sentence_transformer_constructor():
+    """Mocks the SentenceTransformer class constructor and its instance methods."""
+    # Patch where SentenceTransformer is looked up by EmbeddingService
+    with patch('app.services.embedding_service.SentenceTransformer') as mock_st_constructor:
+        mock_st_instance = MagicMock()
+        mock_st_instance.encode.return_value = [
+            np.array([0.1, 0.2, 0.3]), 
+            np.array([0.4, 0.5, 0.6])
+        ]
+        mock_st_constructor.return_value = mock_st_instance
+        yield mock_st_constructor, mock_st_instance
 
-def test_embedding_service_init_success(mock_openai_client_constructor, monkeypatch): # Add monkeypatch fixture
-    mock_constructor, mock_instance = mock_openai_client_constructor
-    
-    # Use monkeypatch to temporarily set the attribute on the settings instance
-    monkeypatch.setattr(settings, "openai_api_key", "test_key_success")
-    
-    service = EmbeddingService() # EmbeddingService will read the patched settings.openai_api_key
-    assert service.client is not None
-    assert service.model_name == settings.embedding_model_name
-    mock_constructor.assert_called_once_with(api_key="test_key_success")
+# --- Tests for __init__ ---
 
-
-def test_embedding_service_init_no_api_key(monkeypatch):
-    # Temporarily set the API key to an empty string
-    monkeypatch.setattr(settings, "openai_api_key", "")
+def test_embedding_service_init_success(mock_sentence_transformer_constructor, monkeypatch):
+    mock_st_constructor, mock_st_instance = mock_sentence_transformer_constructor
     
-    with pytest.raises(ValueError, match="OPENAI_API_KEY must be set"):
+    # Ensure settings reflect a model name for the test
+    monkeypatch.setattr(settings, "embedding_model_name", "cpu-test-model")
+
+    service = EmbeddingService()
+
+    assert service.local_model == mock_st_instance
+    assert service.model_name == "cpu-test-model"
+    # Verify SentenceTransformer was called with 'cpu' device
+    mock_st_constructor.assert_called_once_with("cpu-test-model", device='cpu')
+
+def test_embedding_service_init_model_load_failure(mock_sentence_transformer_constructor, monkeypatch):
+    mock_st_constructor, _ = mock_sentence_transformer_constructor
+
+    # Simulate SentenceTransformer constructor raising an error
+    mock_st_constructor.side_effect = Exception("Failed to download/load model")
+    
+    monkeypatch.setattr(settings, "embedding_model_name", "bad-model-name-cpu")
+
+    with pytest.raises(EmbeddingError, match="Failed to load local model: Failed to download/load model"):
         EmbeddingService()
-    # monkeypatch automatically restores the original value after the test
 
-def test_embed_texts_success(mock_openai_client_constructor, monkeypatch):
-    mock_constructor, mock_client_instance = mock_openai_client_constructor
-    monkeypatch.setattr(settings, "openai_api_key", "test_key_embed")
+@patch('app.services.embedding_service.SentenceTransformer', None) # Simulate library not installed
+def test_embedding_service_init_library_not_installed(monkeypatch):
+    # No need to mock torch if it's not directly used in the simplified __init__ for device detection
+    monkeypatch.setattr(settings, "embedding_model_name", "any-model-cpu")
+    with pytest.raises(ImportError, match="SentenceTransformers library is required for local embeddings but not installed."): # Adjusted match
+        EmbeddingService()
 
-    mock_embedding_data = [MagicMock(embedding=[0.1, 0.2]), MagicMock(embedding=[0.3, 0.4])]
-    mock_response = MagicMock()
-    mock_response.data = mock_embedding_data
-    mock_client_instance.embeddings.create.return_value = mock_response
 
-    service = EmbeddingService()
-    texts = ["hello", "world"]
-    embeddings = service.embed_texts(texts)
+# --- Tests for embed_texts ---
 
-    assert embeddings == [[0.1, 0.2], [0.3, 0.4]]
-    mock_client_instance.embeddings.create.assert_called_once_with(
-        input=texts, model=settings.embedding_model_name
-    )
+def test_embed_texts_success(mock_sentence_transformer_constructor, monkeypatch):
+    _ , mock_st_instance = mock_sentence_transformer_constructor # We only need the instance
+    monkeypatch.setattr(settings, "embedding_model_name", "test-model-embed-cpu")
 
-def test_embed_texts_empty_input(mock_openai_client_constructor, monkeypatch):
-    mock_constructor, mock_client_instance = mock_openai_client_constructor
-    monkeypatch.setattr(settings, "openai_api_key", "test_key_empty")
+    service = EmbeddingService() # Initialize the service (uses mocked ST)
     
+    texts_to_embed = ["hello cpu", "another cpu text"]
+    # This should match what mock_st_instance.encode is configured to return in the fixture
+    expected_embeddings = [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]] 
+
+    embeddings = service.embed_texts(texts_to_embed)
+
+    assert embeddings == expected_embeddings
+    mock_st_instance.encode.assert_called_once_with(texts_to_embed, convert_to_tensor=False)
+
+def test_embed_texts_empty_input(mock_sentence_transformer_constructor, monkeypatch):
+    _ , mock_st_instance = mock_sentence_transformer_constructor
+    monkeypatch.setattr(settings, "embedding_model_name", "test-model-empty-cpu")
+
     service = EmbeddingService()
+    
     embeddings = service.embed_texts([])
+
     assert embeddings == []
-    mock_client_instance.embeddings.create.assert_not_called()
+    mock_st_instance.encode.assert_not_called()
 
-def test_embed_texts_openai_api_error(mock_openai_client_constructor, monkeypatch):
-    mock_constructor, mock_client_instance = mock_openai_client_constructor
-    monkeypatch.setattr(settings, "openai_api_key", "test_key_api_error")
+def test_embed_texts_encode_failure(mock_sentence_transformer_constructor, monkeypatch):
+    _ , mock_st_instance = mock_sentence_transformer_constructor
+    monkeypatch.setattr(settings, "embedding_model_name", "test-model-fail-encode-cpu")
 
-    mock_client_instance.embeddings.create.side_effect = APIError(
-        message="Mocked OpenAI API Error", request=MagicMock(), body=None # ensure request is a mock
-    )
-    
-    service = EmbeddingService()
-    with pytest.raises(EmbeddingError, match="OpenAI API error: Mocked OpenAI API Error"):
-        service.embed_texts(["test text"])
-
-def test_embed_texts_unexpected_error(mock_openai_client_constructor, monkeypatch):
-    mock_constructor, mock_client_instance = mock_openai_client_constructor
-    monkeypatch.setattr(settings, "openai_api_key", "test_key_unexpected")
-
-    mock_client_instance.embeddings.create.side_effect = Exception("Unexpected generic error")
+    mock_st_instance.encode.side_effect = Exception("Internal ST encode error on CPU")
 
     service = EmbeddingService()
-    with pytest.raises(EmbeddingError, match="Failed to embed texts: Unexpected generic error"):
-        service.embed_texts(["test text"])
+    texts_to_embed = ["some text for cpu error"]
+
+    with pytest.raises(EmbeddingError, match="Failed to embed texts: Internal ST encode error on CPU"):
+        service.embed_texts(texts_to_embed)

@@ -94,8 +94,3 @@ app.include_router(api_router) # Include the versioned router into the main app
 async def read_root():
     logger.info("Root endpoint accessed")
     return {"message": "Welcome to the Semantic Q/A API! Visit /docs for API documentation."}
-
-# If you want to run with Uvicorn directly from this file (for simple local dev):
-# if __name__ == "__main__":
-#     import uvicorn
-#     uvicorn.run(app, host="0.0.0.0", port=8000)
