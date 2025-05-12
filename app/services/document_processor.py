@@ -2,12 +2,13 @@
 import fitz  # PyMuPDF
 import logging
 from typing import List, Tuple, Dict, Optional
-from app.core.exceptions import PDFParsingError
+from app.core.exceptions import PDFParsingError, EmbeddingError, VectorStoreError, DocumentProcessingError
 from app.core.config import settings # For chunk_size, chunk_overlap
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document as LangchainDocument
 from app.services.embedding_service import EmbeddingService
 from app.services.vector_store import VectorStoreService
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -112,100 +113,100 @@ def chunk_text(
     return all_chunks
 
 
-    async def process_and_index_pdf(
-        pdf_bytes: bytes,
-        filename: str,
-        embedding_service: EmbeddingService, # Pass as dependency
-        vector_store_service: VectorStoreService, # Pass as dependency
-        author: Optional[str] = None,
-        collection_name: Optional[str] = None, # Allow overriding default collection
-    ) -> str:
-        """
-        Orchestrates the PDF processing and indexing pipeline.
-        1. Extracts text from PDF.
-        2. Chunks the extracted text.
-        3. Generates embeddings for chunks.
-        4. Upserts chunks and embeddings to the vector store.
+async def process_and_index_pdf(
+    pdf_bytes: bytes,
+    filename: str,
+    embedding_service: EmbeddingService, # Pass as dependency
+    vector_store_service: VectorStoreService, # Pass as dependency
+    author: Optional[str] = None,
+    collection_name: Optional[str] = None, # Allow overriding default collection
+) -> str:
+    """
+    Orchestrates the PDF processing and indexing pipeline.
+    1. Extracts text from PDF.
+    2. Chunks the extracted text.
+    3. Generates embeddings for chunks.
+    4. Upserts chunks and embeddings to the vector store.
 
-        Args:
-            pdf_bytes: The PDF file content as bytes.
-            filename: The original name of the PDF file (used as title).
-            embedding_service: An instance of EmbeddingService.
-            vector_store_service: An instance of VectorStoreService.
-            author: Optional author of the document.
-            collection_name: Optional name of the Qdrant collection to use.
+    Args:
+        pdf_bytes: The PDF file content as bytes.
+        filename: The original name of the PDF file (used as title).
+        embedding_service: An instance of EmbeddingService.
+        vector_store_service: An instance of VectorStoreService.
+        author: Optional author of the document.
+        collection_name: Optional name of the Qdrant collection to use.
 
-        Returns:
-            The unique ID generated for the processed document.
+    Returns:
+        The unique ID generated for the processed document.
 
-        Raises:
-            DocumentProcessingError: If any step in the pipeline fails.
-        """
-        doc_id = str(uuid.uuid4())
-        effective_collection_name = collection_name or settings.qdrant_collection_name
-        logger.info(f"Starting processing for document: {filename}, assigned ID: {doc_id}")
+    Raises:
+        DocumentProcessingError: If any step in the pipeline fails.
+    """
+    doc_id = str(uuid.uuid4())
+    effective_collection_name = collection_name or settings.qdrant_collection_name
+    logger.info(f"Starting processing for document: {filename}, assigned ID: {doc_id}")
 
-        try:
-            # 1. Ensure Qdrant collection exists (idempotent)
-            # This should be called once at application startup or ensured by deployment.
-            # For robustness, we can call it here too, but be mindful of performance if called frequently.
-            # Making it async because initialize_collection_if_not_exists is async
-            await vector_store_service.initialize_collection_if_not_exists(
-                collection_name=effective_collection_name,
-                vector_size=settings.embedding_dim
-            )
+    try:
+        # 1. Ensure Qdrant collection exists (idempotent)
+        # This should be called once at application startup or ensured by deployment.
+        # For robustness, we can call it here too, but be mindful of performance if called frequently.
+        # Making it async because initialize_collection_if_not_exists is async
+        await vector_store_service.initialize_collection_if_not_exists(
+            collection_name=effective_collection_name,
+            vector_size=settings.embedding_dim
+        )
 
-            # 2. Extract text
-            logger.info(f"[{doc_id}] Extracting text from PDF: {filename}")
-            pages_data = extract_text_from_pdf(pdf_bytes)
-            if not pages_data:
-                logger.warning(f"[{doc_id}] No text extracted from {filename}. Skipping further processing.")
-                return doc_id # Or raise DocumentProcessingError("No text could be extracted from the PDF.")
+        # 2. Extract text
+        logger.info(f"[{doc_id}] Extracting text from PDF: {filename}")
+        pages_data = extract_text_from_pdf(pdf_bytes)
+        if not pages_data:
+            logger.warning(f"[{doc_id}] No text extracted from {filename}. Skipping further processing.")
+            return doc_id # Or raise DocumentProcessingError("No text could be extracted from the PDF.")
 
-            # 3. Chunk text
-            logger.info(f"[{doc_id}] Chunking text for {filename}")
-            chunks = chunk_text(
-                pages_data,
-                chunk_size=settings.CHUNK_SIZE,
-                chunk_overlap=settings.CHUNK_OVERLAP
-            )
-            if not chunks:
-                logger.warning(f"[{doc_id}] No chunks generated from {filename}. Skipping embedding and indexing.")
-                return doc_id # Or raise
+        # 3. Chunk text
+        logger.info(f"[{doc_id}] Chunking text for {filename}")
+        chunks = chunk_text(
+            pages_data,
+            chunk_size=settings.chunk_size,
+            chunk_overlap=settings.chunk_overlap
+        )
+        if not chunks:
+            logger.warning(f"[{doc_id}] No chunks generated from {filename}. Skipping embedding and indexing.")
+            return doc_id # Or raise
 
-            # 4. Embed chunks
-            logger.info(f"[{doc_id}] Generating embeddings for {len(chunks)} chunks from {filename}")
-            chunk_texts_to_embed = [chunk["text"] for chunk in chunks]
-            embeddings = embedding_service.embed_texts(chunk_texts_to_embed)
-            if len(embeddings) != len(chunks): # Should not happen if embed_texts is robust
-                raise DocumentProcessingError("Mismatch between number of chunks and generated embeddings.")
+        # 4. Embed chunks
+        logger.info(f"[{doc_id}] Generating embeddings for {len(chunks)} chunks from {filename}")
+        chunk_texts_to_embed = [chunk["text"] for chunk in chunks]
+        embeddings = embedding_service.embed_texts(chunk_texts_to_embed)
+        if len(embeddings) != len(chunks): # Should not happen if embed_texts is robust
+            raise DocumentProcessingError("Mismatch between number of chunks and generated embeddings.")
 
-            # 5. Prepare document metadata & Upsert to Vector Store
-            logger.info(f"[{doc_id}] Upserting {len(chunks)} chunks to vector store for {filename}")
-            document_metadata = {
-                "document_id": doc_id,
-                "title": filename,
-                "author": author, # Will be None if not provided
-            }
-            vector_store_service.upsert_chunks(
-                collection_name=effective_collection_name,
-                chunks_data=chunks,
-                embeddings=embeddings,
-                document_metadata=document_metadata
-            )
+        # 5. Prepare document metadata & Upsert to Vector Store
+        logger.info(f"[{doc_id}] Upserting {len(chunks)} chunks to vector store for {filename}")
+        document_metadata = {
+            "document_id": doc_id,
+            "title": filename,
+            "author": author, # Will be None if not provided
+        }
+        vector_store_service.upsert_chunks(
+            collection_name=effective_collection_name,
+            chunks_data=chunks,
+            embeddings=embeddings,
+            document_metadata=document_metadata
+        )
 
-            logger.info(f"[{doc_id}] Successfully processed and indexed document: {filename}")
-            return doc_id
+        logger.info(f"[{doc_id}] Successfully processed and indexed document: {filename}")
+        return doc_id
 
-        except PDFParsingError as e:
-            logger.error(f"[{doc_id}] PDF parsing failed for {filename}: {e}")
-            raise DocumentProcessingError(f"PDF parsing failed for {filename}: {e}") from e
-        except EmbeddingError as e:
-            logger.error(f"[{doc_id}] Embedding failed for {filename}: {e}")
-            raise DocumentProcessingError(f"Embedding failed for {filename}: {e}") from e
-        except VectorStoreError as e:
-            logger.error(f"[{doc_id}] Vector store operation failed for {filename}: {e}")
-            raise DocumentProcessingError(f"Vector store operation failed for {filename}: {e}") from e
-        except Exception as e:
-            logger.error(f"[{doc_id}] An unexpected error occurred processing {filename}: {e}")
-            raise DocumentProcessingError(f"Unexpected error processing {filename}: {e}") from e
+    except PDFParsingError as e:
+        logger.error(f"[{doc_id}] PDF parsing failed for {filename}: {e}")
+        raise DocumentProcessingError(f"PDF parsing failed for {filename}: {e}") from e
+    except EmbeddingError as e:
+        logger.error(f"[{doc_id}] Embedding failed for {filename}: {e}")
+        raise DocumentProcessingError(f"Embedding failed for {filename}: {e}") from e
+    except VectorStoreError as e:
+        logger.error(f"[{doc_id}] Vector store operation failed for {filename}: {e}")
+        raise DocumentProcessingError(f"Vector store operation failed for {filename}: {e}") from e
+    except Exception as e:
+        logger.error(f"[{doc_id}] An unexpected error occurred processing {filename}: {e}")
+        raise DocumentProcessingError(f"Unexpected error processing {filename}: {e}") from e

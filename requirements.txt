@@ -1,6 +1,7 @@
 # Web Framework
 fastapi
 uvicorn[standard] # ASGI (Asynchronous Server Gateway Interface)
+python-multipart
 
 # Vector DB
 qdrant-client
@@ -8,7 +9,11 @@ qdrant-client
 # PDF Parsing
 pymupdf
 
-# OpenAI Client (for Embeddings & LLM)
+# Embedding Model
+sentence-transformers
+torch
+
+# OpenAI Client (for LLM)
 openai
 
 # Document Processing (for Chunking)

@@ -13,8 +13,9 @@ class Settings(BaseSettings):
     qdrant_prefer_grpc: bool = Field(True, alias='QDRANT_PREFER_GRPC')
 
     # Embedding Model Configuration
-    embedding_model_name: str = Field("text-embedding-3-small", alias='EMBEDDING_MODEL_NAME')
-    embedding_dim: int = Field(1536, alias='EMBEDDING_DIM')
+    embedding_provider : str = Field("local_sentence_transformer", alias="EMBEDDING_PROVIDER")
+    embedding_model_name: str = Field("sentence-transformers/all-MiniLM-L6-v2", alias='EMBEDDING_MODEL_NAME')
+    embedding_dim: int = Field(384, alias='EMBEDDING_DIM')
     openai_api_key: str = Field(..., alias='OPENAI_API_KEY') # Make required
     # gemini_api_key: Optional[str] = Field(None, alias='GEMINI_API_KEY') # Add later if needed
 

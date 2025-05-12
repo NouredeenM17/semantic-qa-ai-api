@@ -12,7 +12,8 @@ logger = logging.getLogger(__name__)
 
 # Constants for LLM Providers (can be expanded)
 LLM_PROVIDER_OPENAI = "openai"
-LLM_PROVIDER_GEMINI = "gemini" # Placeholder for future
+LLM_PROVIDER_GEMINI = "gemini"
+LLM_PROVIDER_MOCK = "mock"
 
 class QAService:
     def __init__(self):
@@ -34,6 +35,8 @@ class QAService:
             # self.gemini_client = ...
             logger.warning("Gemini provider selected but not yet fully implemented in QAService.")
             raise NotImplementedError("Gemini LLM provider is not yet implemented.")
+        elif self.llm_provider == LLM_PROVIDER_MOCK:
+            pass
         else:
             raise ValueError(f"Unsupported LLM provider: {self.llm_provider}")
 
@@ -110,6 +113,8 @@ class QAService:
                 # response = self.gemini_client.generate_content(...)
                 # answer = ...
                 raise NotImplementedError("Gemini LLM provider call is not yet implemented.")
+            elif self.llm_provider == LLM_PROVIDER_MOCK:
+                answer = prompt + " THIS IS A MOCK LLM RESPONSE."
             else:
                 # Should have been caught in __init__
                 raise ValueError(f"Unsupported LLM provider: {self.llm_provider}")

@@ -23,7 +23,7 @@ class VectorStoreService:
                     prefer_grpc=settings.qdrant_prefer_grpc,
                     # timeout=10 # Optional: set timeout for requests
                 )
-                self.client.health_check() # Verifies connection
+                #self.client.health_check() # Verifies connection
                 logger.info(f"VectorStoreService initialized and connected to Qdrant at {settings.qdrant_host}:{settings.qdrant_port}")
             except Exception as e:
                 logger.error(f"Failed to connect to Qdrant: {e}")
@@ -60,9 +60,9 @@ class VectorStoreService:
             self.client.recreate_collection( # or create_collection if you are sure it doesn't exist
                 collection_name=col_name,
                 vectors_config=models.VectorParams(
-                    size=vector_size,
-                    distance=distance_metric
-                )
+                        size=vector_size,
+                        distance=distance_metric
+                    )
                 # Potentially add HNSW or other indexing parameters here for production
                 # hnsw_config=models.HnswConfigDiff(m=16, ef_construct=100)
             )
