@@ -30,25 +30,6 @@ This project provides a RESTful API that allows users to upload PDF documents, i
 | Development Tools     | Docker, Docker Compose, Git                        |                                           |
 | Testing               | Pytest, `unittest.mock`, `pytest-asyncio`        | Unit tests for services                   |
 
-## Project Structure
-
-semantic_qa_api/
-├── app/ # FastAPI application code
-│ ├── api/ # API Routers, Schemas, Dependencies
-│ ├── core/ # Config, Exceptions, Logging
-│ ├── services/ # Business logic (document processing, embedding, QA, vector store)
-│ └── main.py # FastAPI app instance, middleware, lifespan events
-├── tests/ # Pytest tests (unit tests implemented for services)
-│ ├── unit/
-│ └── fixtures/ # Optional: Sample files for testing
-├── .env.example # Example environment variables template
-├── .gitignore
-├── Dockerfile # Defines the API service Docker image
-├── docker-compose.yml # Defines services (API, Qdrant) and their orchestration
-├── pytest.ini # Pytest configuration (e.g., warning filters)
-├── requirements.txt # Python dependencies
-└── README.md
-
 ## Setup and Running Locally (Docker Recommended)
 
 Using Docker Compose is the recommended way to run the application locally as it handles both the API service and the Qdrant database.
